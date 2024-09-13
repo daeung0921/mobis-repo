@@ -4,7 +4,7 @@ module "cdro-repos" {
   config = [
     {
       app_name        = "flow-repository-1"
-      claim_name      = "flow-repo-artifacts-1"F
+      claim_name      = "flow-repo-artifacts-1"
       pv_name         = "flow-repo-artifacts-1"
       service_name    = "flow-repository-1"
       policy_name     = "repository-policy-1"
