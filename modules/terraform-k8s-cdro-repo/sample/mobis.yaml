@@ -1,0 +1,188 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: flow-repository
+    argocd.argoproj.io/instance: cloudbeescd
+    chart: cloudbees-flow
+    heritage: Helm
+    release: cdro
+  name: flow-repository
+  namespace: cloudbees
+spec:
+  ports:
+    - name: ef-repository
+      port: 8200
+      protocol: TCP
+      targetPort: p3-repository
+  selector:
+    app: flow-repository
+    release: cdro
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: flow-repository
+    argocd.argoproj.io/instance: cloudbeescd
+    chart: cloudbees-flow
+    heritage: Helm
+    release: cdro
+  name: flow-repository
+  namespace: cloudbees
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: flow-repository
+      release: cdro
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: flow-repository
+        release: cdro
+    spec:
+      containers:
+        - env:
+            - name: CBF_REPOSITORY_NAME
+              value: default
+            - name: PUBLIC_HOSTNAME
+              value: flow-repository
+            - name: CBF_SERVER_HOST
+              value: flow-server
+            - name: CBF_SERVER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: CBF_SERVER_ADMIN_PASSWORD
+                  name: cdro-cloudbees-flow-credentials
+            - name: CBF_SERVER_USER
+              value: admin
+            - name: CBF_LOCAL_RESOURCE_HOST
+              value: cb-flow-bound-agent
+            - name: CBF_CONFIGURE
+              value: '--repositoryInitMemoryMB=4096 --repositoryMaxMemoryMB=4096'
+          image: >-
+            docker.io/cloudbees/cbflow-repository:2023.10.0.169425_3.2.54_20231002
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            exec:
+              command:
+                - /opt/cbflow/health-check
+            initialDelaySeconds: 120
+            periodSeconds: 10
+            timeoutSeconds: 5
+          name: flow-repository
+          ports:
+            - containerPort: 8200
+              name: p3-repository
+              protocol: TCP
+          readinessProbe:
+            initialDelaySeconds: 120
+            periodSeconds: 5
+            tcpSocket:
+              port: 8200
+            timeoutSeconds: 5
+          resources:
+            limits:
+              cpu: 2
+              memory: 32Gi
+            requests:
+              cpu: 2
+              memory: 32Gi
+          volumeMounts:
+            - mountPath: /repository-data
+              name: repository-data-volume
+            - mountPath: /custom-config/repository/logging-local.properties
+              name: logback-config
+              subPath: repository-logback-config
+      nodeSelector:
+        type: physical
+        usage: sys
+      serviceAccountName: default
+      volumes:
+        - name: repository-data-volume
+          persistentVolumeClaim:
+            claimName: flow-repo-artifacts
+        - configMap:
+            name: flow-logging-config
+          name: logback-config
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    argocd.argoproj.io/instance: cloudbeescd
+  name: repository-policy
+  namespace: cloudbees
+spec:
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: cb-flow-bound-agent-flow-agent
+              release: cdro
+        - podSelector:
+            matchLabels:
+              app: flow-server
+              release: cdro
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - port: 8200
+          protocol: TCP
+  podSelector:
+    matchLabels:
+      app: flow-repository
+      release: cdro
+  policyTypes:
+    - Ingress
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  labels:
+    app: repo
+    argocd.argoproj.io/instance: cloudbeescd
+    meta.helm.sh/release-name: cdro
+    meta.helm.sh/release-namespace: cloudbees
+  name: flow-repo-artifacts
+spec:
+  accessModes:
+    - ReadWriteMany
+  capacity:
+    storage: 100Ti
+  nfs:
+    path: /RND_Cloud/sbas_stg/build/kube_artifacts
+    readOnly: false
+    server: cicdfas.mobis.com
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: repo-artifacts
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    meta.helm.sh/release-name: cdro
+    meta.helm.sh/release-namespace: cloudbees
+    pv.kubernetes.io/bind-completed: 'yes'
+    pv.kubernetes.io/bound-by-controller: 'yes'
+  creationTimestamp: '2023-09-01T04:43:07Z'
+  finalizers:
+    - kubernetes.io/pvc-protection
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    argocd.argoproj.io/instance: cloudbeescd
+  name: flow-repo-artifacts
+  namespace: cloudbees
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Ti
+  storageClassName: repo-artifacts
+  volumeMode: Filesystem
+  volumeName: flow-repo-artifacts
