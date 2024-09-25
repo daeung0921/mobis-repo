@@ -1,3 +1,9 @@
+variable "enable_create_resources" {
+  description = "Whether to print only without creating k8s resources"
+  type        = bool
+  default     = false
+}
+
 variable "config" {
   description = "List of grouped application and resource configurations"
 

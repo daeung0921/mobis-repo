@@ -1,6 +1,6 @@
 
 resource "kubernetes_service_v1" "flow_repository" {
-  for_each = { for cfg in var.config : cfg.service_name => cfg }
+  for_each = var.enable_create_resources ? { for cfg in var.config : cfg.service_name => cfg } : {}
 
   metadata {
     name      = each.value.service_name
@@ -29,7 +29,7 @@ resource "kubernetes_service_v1" "flow_repository" {
 }
 
 resource "kubernetes_network_policy_v1" "repository_policy" {
-  for_each = { for cfg in var.config : "${cfg.namespace}-${cfg.app_name}" => cfg }
+  for_each = var.enable_create_resources ? { for cfg in var.config : "${cfg.namespace}-${cfg.app_name}" => cfg } : {}
 
   metadata {
     name      = each.value.policy_name
@@ -84,7 +84,7 @@ resource "kubernetes_network_policy_v1" "repository_policy" {
 }
 
 resource "kubernetes_deployment_v1" "flow_repository" {
-  for_each = { for cfg in var.config : cfg.app_name => cfg }
+  for_each = var.enable_create_resources ? { for cfg in var.config : cfg.app_name => cfg } : {}
 
   metadata {
     name      = each.value.app_name
@@ -230,7 +230,7 @@ resource "kubernetes_deployment_v1" "flow_repository" {
 }
 
 resource "kubernetes_persistent_volume_v1" "cdro_repo_pv" {
-  for_each = { for cfg in var.config : cfg.pv_name => cfg }
+  for_each = var.enable_create_resources ? { for cfg in var.config : cfg.pv_name => cfg } : {}
   metadata {
     name = each.value.pv_name
   }
@@ -254,7 +254,7 @@ resource "kubernetes_persistent_volume_v1" "cdro_repo_pv" {
 
 
 resource "kubernetes_persistent_volume_claim_v1" "cdro_repo_pvc" {
-  for_each = { for cfg in var.config : cfg.claim_name => cfg }
+  for_each = var.enable_create_resources ? { for cfg in var.config : cfg.claim_name => cfg } : {}
 
   metadata {
     name      = each.value.claim_name
