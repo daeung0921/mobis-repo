@@ -16,6 +16,8 @@ resource "local_file" "flow_repository_deployment" {
       matchLabels:
         app: ${each.value.app_name}
         release: ${each.value.release_name}
+    strategy:
+      type: Recreate
     template:
       metadata:
         labels:
@@ -55,6 +57,23 @@ resource "local_file" "flow_repository_deployment" {
           - containerPort: 8200
             name: p3-repository
             protocol: TCP
+          livenessProbe:
+            exec:
+              command:
+              - /opt/cbflow/health-check
+            initialDelaySeconds: 120
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            initialDelaySeconds: 120
+            periodSeconds: 5
+            tcpSocket:
+              port: 8200
+            timeoutSeconds: 5
+        nodeSelector:
+          type: physical
+          usage: sys
+        serviceAccountName: default
         volumes:
         - name: repository-data-volume
           persistentVolumeClaim:
@@ -64,7 +83,8 @@ resource "local_file" "flow_repository_deployment" {
             name: flow-logging-config
   EOT
 
-  filename = "${path.module}/debug/deployment_${each.value.app_name}.yaml"
+  filename = "${path.root}/debug/deployment_${each.value.app_name}.yaml"
+
 }
 
 resource "local_file" "flow_repository_service" {
@@ -91,7 +111,7 @@ resource "local_file" "flow_repository_service" {
       targetPort: p3-repository
   EOT
 
-  filename = "${path.module}/debug/service_${each.value.app_name}.yaml"
+  filename = "${path.root}/debug/service_${each.value.app_name}.yaml"
 }
 
 resource "local_file" "flow_repository_pv" {
@@ -110,10 +130,12 @@ resource "local_file" "flow_repository_pv" {
     persistentVolumeReclaimPolicy: Retain
     nfs:
       path: ${each.value.nfs.path}
+      readOnly: false
       server: ${each.value.nfs.server}
+    storageClassName: ${each.value.resource.storage_class}
   EOT
 
-  filename = "${path.module}/debug/pv_${each.value.app_name}.yaml"
+  filename = "${path.root}/debug/pv_${each.value.app_name}.yaml"
 }
 
 resource "local_file" "flow_repository_pvc" {
@@ -133,9 +155,10 @@ resource "local_file" "flow_repository_pvc" {
         storage: ${each.value.resource.storage}
     storageClassName: ${each.value.resource.storage_class}
     volumeName: ${each.value.pv_name}
+    volumeMode: Filesystem
   EOT
 
-  filename = "${path.module}/debug/pvc_${each.value.app_name}.yaml"
+  filename = "${path.root}/debug/pvc_${each.value.app_name}.yaml"
 }
 
 resource "local_file" "flow_repository_policy" {
@@ -174,5 +197,5 @@ resource "local_file" "flow_repository_policy" {
     - Ingress
   EOT
 
-  filename = "${path.module}/debug/policy_${each.value.app_name}.yaml"
+  filename = "${path.root}/debug/policy_${each.value.app_name}.yaml"
 }
